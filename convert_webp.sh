@@ -2,15 +2,15 @@
 
 # Check if dwebp is installed
 if ! command -v dwebp &> /dev/null; then
-    echo "Error: dwebp is not installed. Please install libwebp package."
-    echo "Run: sudo pacman -S libwebp"
+    echo -e "${RED}Error: dwebp is not installed. Please install libwebp package.${NC}"
+    echo -e "${BLUE}Run: sudo pacman -S libwebp${NC}"
     exit 1
 fi
 
 # Check if ImageMagick is installed
 if ! command -v convert &> /dev/null; then
-    echo "Warning: ImageMagick is not installed. Some format conversions might not work."
-    echo "To install: sudo pacman -S imagemagick"
+    echo -e "${YELLOW}Warning: ImageMagick is not installed. Some format conversions might not work.${NC}"
+    echo -e "${BLUE}To install: sudo pacman -S imagemagick${NC}"
 fi
 
 # Default values
@@ -19,6 +19,13 @@ quality=100
 
 # Supported formats
 supported_formats=(png jpg jpeg tiff bmp)
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
 # Function to check if format is supported
 is_supported_format() {
@@ -52,7 +59,7 @@ while [[ $# -gt 0 ]]; do
             output_format="$2"
             # Check if the format is supported
             if ! is_supported_format "$output_format"; then
-                echo "Error: Unsupported format '$output_format'. Supported formats are: ${supported_formats[*]}"
+                echo -e "${RED}Error: Unsupported format '$output_format'. Supported formats are: ${supported_formats[*]}${NC}"
                 exit 1
             fi
             shift 2
@@ -65,7 +72,7 @@ while [[ $# -gt 0 ]]; do
             show_help
             ;;
         *)
-            echo "Unknown option: $1"
+            echo -e "${RED}Unknown option: $1${NC}"
             show_help
             ;;
     esac
@@ -73,7 +80,7 @@ done
 
 # Validate quality
 if ! [[ "$quality" =~ ^[0-9]+$ ]] || [ "$quality" -lt 1 ] || [ "$quality" -gt 100 ]; then
-    echo "Error: Quality must be a number between 1 and 100"
+    echo -e "${RED}Error: Quality must be a number between 1 and 100${NC}"
     exit 1
 fi
 
@@ -81,22 +88,30 @@ fi
 originals_dir="webp_originals"
 mkdir -p "$originals_dir"
 
-# Find and convert all WebP files recursively, but ignore webp_originals directory
-find . -type f -name "*.webp" ! -path "./$originals_dir/*" | while read -r file; do
+# Find all .webp files (excluding webp_originals)
+mapfile -t webp_files < <(find . -type f -name "*.webp" ! -path "./$originals_dir/*")
+
+if [ ${#webp_files[@]} -eq 0 ]; then
+    echo -e "${YELLOW}No .webp files found in the current directory or subdirectories (excluding $originals_dir).${NC}"
+    exit 0
+fi
+
+for file in "${webp_files[@]}"; do
     filename="${file%.*}"
-    echo "Converting $file to ${filename}.${output_format}"
+    echo -e "${BLUE}Converting $file to ${filename}.${output_format}${NC}"
     
     # First convert to PNG using dwebp
     dwebp "$file" -o "${filename}.png"
     
     if [ "$output_format" = "png" ]; then
-        echo "Saved as ${filename}.png"
+        echo -e "${GREEN}Saved as ${filename}.png${NC}"
     elif command -v magick &> /dev/null; then
         magick "${filename}.png" -quality "$quality" "${filename}.${output_format}"
         rm "${filename}.png"
+        echo -e "${GREEN}Saved as ${filename}.${output_format}${NC}"
     else
-        echo "Warning: Could not convert to ${output_format} - ImageMagick (magick) not installed"
-        echo "File saved as PNG instead"
+        echo -e "${YELLOW}Warning: Could not convert to ${output_format} - ImageMagick (magick) not installed${NC}"
+        echo -e "${GREEN}File saved as PNG instead${NC}"
     fi
 
     # Move original webp file to originals_dir (directory for original webp files)
@@ -104,11 +119,13 @@ find . -type f -name "*.webp" ! -path "./$originals_dir/*" | while read -r file;
     dest_dir="$originals_dir/$(dirname "$rel_path")"
     mkdir -p "$dest_dir"
     mv "$file" "$dest_dir/"
-    echo "Moved original webp file to $dest_dir"
+    echo -e "${BLUE}Moved original webp file to $dest_dir${NC}"
 done
 
 # Check script run correctly
 if [ $? -ne 0 ]; then
-    echo "Error: Conversion failed"
+    echo -e "${RED}Error: Conversion failed${NC}"
     exit 1
 fi
+
+echo -e "${GREEN}Conversion complete!${NC}"
