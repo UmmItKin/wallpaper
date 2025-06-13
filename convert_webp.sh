@@ -77,11 +77,16 @@ if ! [[ "$quality" =~ ^[0-9]+$ ]] || [ "$quality" -lt 1 ] || [ "$quality" -gt 10
     exit 1
 fi
 
-# Find and convert all WebP files recursively
-find . -type f -name "*.webp" | while read -r file; do
+# Directory to store original webp files
+originals_dir="webp_originals"
+mkdir -p "$originals_dir"
+
+# Find and convert all WebP files recursively, but ignore webp_originals directory
+find . -type f -name "*.webp" ! -path "./$originals_dir/*" | while read -r file; do
     filename="${file%.*}"
     echo "Converting $file to ${filename}.${output_format}"
     
+    # First convert to PNG using dwebp
     dwebp "$file" -o "${filename}.png"
     
     if [ "$output_format" = "png" ]; then
@@ -93,6 +98,13 @@ find . -type f -name "*.webp" | while read -r file; do
         echo "Warning: Could not convert to ${output_format} - ImageMagick (magick) not installed"
         echo "File saved as PNG instead"
     fi
+
+    # Move original webp file to originals_dir (directory for original webp files)
+    rel_path="${file#./}"
+    dest_dir="$originals_dir/$(dirname "$rel_path")"
+    mkdir -p "$dest_dir"
+    mv "$file" "$dest_dir/"
+    echo "Moved original webp file to $dest_dir"
 done
 
 # Check script run correctly
